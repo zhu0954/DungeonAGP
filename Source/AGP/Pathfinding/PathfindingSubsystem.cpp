@@ -282,3 +282,32 @@ TArray<FVector> UPathfindingSubsystem::ReconstructPath(const TMap<ANavigationNod
 	return NodeLocations;
 }
 
+void UPathfindingSubsystem::UpdatePathfindingNodes(const TArray<FVector>& RoomAndCorridorLocations, int32 MapWidth, int32 MapHeight, float RoomSize)
+{
+	// Clear previous nodes
+	RemoveAllNodes();
+
+	// Place nodes at room and corridor locations
+	for (const FVector& Location : RoomAndCorridorLocations)
+	{
+		if (ANavigationNode* Node = GetWorld()->SpawnActor<ANavigationNode>())
+		{
+			Node->SetActorLocation(Location);
+			ProcedurallyPlacedNodes.Add(Node);
+		}
+	}
+
+	// Rebuild connections for nodes
+	for (ANavigationNode* Node : ProcedurallyPlacedNodes)
+	{
+		Node->ConnectedNodes.Empty();
+
+		for (ANavigationNode* NeighborNode : ProcedurallyPlacedNodes)
+		{
+			if (NeighborNode != Node && FVector::Dist(Node->GetActorLocation(), NeighborNode->GetActorLocation()) <= RoomSize)
+			{
+				Node->ConnectedNodes.Add(NeighborNode);
+			}
+		}
+	}
+}

@@ -56,6 +56,8 @@ public:
 	 */
 	void PlaceProceduralNodes(const TArray<FVector>& LandscapeVertexData, int32 MapWidth, int32 MapHeight);
 
+	void UpdatePathfindingNodes(const TArray<FVector>& RoomLocations, int32 MapWidth, int32 MapHeight, float RoomSize);
+
 protected:
 	
 	TArray<ANavigationNode*> Nodes;
