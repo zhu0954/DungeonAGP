@@ -6,8 +6,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/GameplayStatics.h"
 
-
-
 ADungeonGenerator::ADungeonGenerator()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -32,15 +30,18 @@ void ADungeonGenerator::GenerateDungeon()
     FMath::RandInit(RandomSeed);
     ClearDungeon();
 
-    TArray<FVector> RoomAndCorridorLocations;
-    TArray<TArray<int32>> RoomGrid;  // Declare RoomGrid
+    TArray<FVector> RoomLocations;
+    TArray<FVector> CorridorLocations;
+
+    // Initialize the room grid
+    TArray<TArray<int32>> RoomGrid;
     RoomGrid.SetNum(GridSizeX);
     for (int32 i = 0; i < GridSizeX; ++i)
     {
         RoomGrid[i].SetNumZeroed(GridSizeY);
     }
 
-    // Place rooms and add their positions
+    // Place rooms
     for (int32 X = 0; X < GridSizeX; X++)
     {
         for (int32 Y = 0; Y < GridSizeY; Y++)
@@ -49,50 +50,81 @@ void ADungeonGenerator::GenerateDungeon()
             FRotator SpawnRotation = FRotator::ZeroRotator;
             FActorSpawnParameters SpawnParams;
 
-            if (RoomTypes.Num() == 5 && FMath::RandRange(0, 100) < 50)
+            bool bCanPlaceRoom = true;
+            if (RoomGrid[X][Y] == 0)
             {
-                int32 RandomRoomIndex = FMath::RandRange(0, RoomTypes.Num() - 1);
-                TSubclassOf<AActor> SelectedRoomClass = RoomTypes[RandomRoomIndex];
+                // Ensure no adjacent rooms are of the same type
+                TArray<int32> NeighborRoomTypes;
+                if (X > 0) NeighborRoomTypes.Add(RoomGrid[X - 1][Y]);
+                if (Y > 0) NeighborRoomTypes.Add(RoomGrid[X][Y - 1]);
+                if (X < GridSizeX - 1) NeighborRoomTypes.Add(RoomGrid[X + 1][Y]);
+                if (Y < GridSizeY - 1) NeighborRoomTypes.Add(RoomGrid[X][Y + 1]);
 
-                if (SelectedRoomClass)
+                int32 RandomRoomIndex = FMath::RandRange(0, RoomTypes.Num() - 1);
+                for (int32 NeighborType : NeighborRoomTypes)
                 {
-                    GetWorld()->SpawnActor<AActor>(SelectedRoomClass, SpawnLocation, SpawnRotation, SpawnParams);
-                    RoomAndCorridorLocations.Add(SpawnLocation);
-                    RoomGrid[X][Y] = 1; // Mark this cell as occupied
+                    if (NeighborType == RandomRoomIndex + 1)
+                    {
+                        bCanPlaceRoom = false;
+                        break;
+                    }
+                }
+
+                if (bCanPlaceRoom && RoomTypes.Num() > 0 && FMath::RandRange(0, 100) < 50)
+                {
+                    TSubclassOf<AActor> SelectedRoomClass = RoomTypes[RandomRoomIndex];
+                    if (SelectedRoomClass)
+                    {
+                        GetWorld()->SpawnActor<AActor>(SelectedRoomClass, SpawnLocation, SpawnRotation, SpawnParams);
+                        RoomLocations.Add(SpawnLocation);
+                        RoomGrid[X][Y] = RandomRoomIndex + 1;
+                    }
                 }
             }
         }
     }
 
-    // Place corridors and add their positions to RoomAndCorridorLocations
+    // Place corridors and add nodes for each endpoint
     for (int32 X = 0; X < GridSizeX; X++)
     {
         for (int32 Y = 0; Y < GridSizeY; Y++)
         {
-            if (RoomGrid[X][Y]) // Only if there’s a gap
+            if (RoomGrid[X][Y])
             {
+                // Check horizontally
                 if (X < GridSizeX - 2 && !RoomGrid[X + 1][Y] && RoomGrid[X + 2][Y])
                 {
                     FVector RoomA = FVector(X * RoomSize, Y * RoomSize, 0);
                     FVector RoomB = FVector((X + 2) * RoomSize, Y * RoomSize, 0);
                     CreateCorridorBetweenRooms(RoomA, RoomB);
-                    RoomAndCorridorLocations.Add((RoomA + RoomB) / 2);
+                    
+                    // Add nodes for corridor ends
+                    CorridorLocations.Add((RoomA + FVector(RoomSize / 2, 0, 0)));
+                    CorridorLocations.Add((RoomB - FVector(RoomSize / 2, 0, 0)));
                 }
+                // Check vertically
                 if (Y < GridSizeY - 2 && !RoomGrid[X][Y + 1] && RoomGrid[X][Y + 2])
                 {
                     FVector RoomA = FVector(X * RoomSize, Y * RoomSize, 0);
                     FVector RoomB = FVector(X * RoomSize, (Y + 2) * RoomSize, 0);
                     CreateCorridorBetweenRooms(RoomA, RoomB);
-                    RoomAndCorridorLocations.Add((RoomA + RoomB) / 2);
+                    
+                    // Add nodes for corridor ends
+                    CorridorLocations.Add((RoomA + FVector(0, RoomSize / 2, 0)));
+                    CorridorLocations.Add((RoomB - FVector(0, RoomSize / 2, 0)));
                 }
             }
         }
     }
 
-    // Update pathfinding nodes based on room and corridor locations
+    // Combine room and corridor locations into a single array for pathfinding
+    TArray<FVector> AllNodeLocations = RoomLocations;
+    AllNodeLocations.Append(CorridorLocations);
+
+    // Update pathfinding nodes with both room and corridor locations
     if (UPathfindingSubsystem* PathfindingSubsystem = GetWorld()->GetSubsystem<UPathfindingSubsystem>())
     {
-        PathfindingSubsystem->UpdatePathfindingNodes(RoomAndCorridorLocations, GridSizeX, GridSizeY, RoomSize);
+        PathfindingSubsystem->UpdatePathfindingNodes(AllNodeLocations, GridSizeX, GridSizeY, RoomSize);
     }
 }
 
@@ -145,4 +177,3 @@ void ADungeonGenerator::CreateCorridorBetweenRooms(FVector RoomA, FVector RoomB)
         GetWorld()->SpawnActor<AActor>(CorridorClass, CorridorLocation, CorridorRotation);
     }
 }
-

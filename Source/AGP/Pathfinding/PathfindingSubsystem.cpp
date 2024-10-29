@@ -284,30 +284,79 @@ TArray<FVector> UPathfindingSubsystem::ReconstructPath(const TMap<ANavigationNod
 
 void UPathfindingSubsystem::UpdatePathfindingNodes(const TArray<FVector>& RoomAndCorridorLocations, int32 MapWidth, int32 MapHeight, float RoomSize)
 {
-	// Clear previous nodes
-	RemoveAllNodes();
+    // Clear existing nodes
+    RemoveAllNodes();
 
-	// Place nodes at room and corridor locations
-	for (const FVector& Location : RoomAndCorridorLocations)
-	{
-		if (ANavigationNode* Node = GetWorld()->SpawnActor<ANavigationNode>())
-		{
-			Node->SetActorLocation(Location);
-			ProcedurallyPlacedNodes.Add(Node);
-		}
-	}
+    // Place nodes at room and corridor locations
+    for (const FVector& Location : RoomAndCorridorLocations)
+    {
+        if (ANavigationNode* Node = GetWorld()->SpawnActor<ANavigationNode>())
+        {
+            Node->SetActorLocation(Location);
+            ProcedurallyPlacedNodes.Add(Node);
+        }
+    }
 
-	// Rebuild connections for nodes
-	for (ANavigationNode* Node : ProcedurallyPlacedNodes)
-	{
-		Node->ConnectedNodes.Empty();
+    // Separate room and corridor nodes for more precise connection logic
+    TArray<ANavigationNode*> RoomNodes;
+    TArray<ANavigationNode*> CorridorNodes;
 
-		for (ANavigationNode* NeighborNode : ProcedurallyPlacedNodes)
-		{
-			if (NeighborNode != Node && FVector::Dist(Node->GetActorLocation(), NeighborNode->GetActorLocation()) <= RoomSize)
-			{
-				Node->ConnectedNodes.Add(NeighborNode);
-			}
-		}
-	}
+    for (ANavigationNode* Node : ProcedurallyPlacedNodes)
+    {
+        if (IsCorridorNode(Node))
+        {
+            CorridorNodes.Add(Node);
+        }
+        else
+        {
+            RoomNodes.Add(Node);
+        }
+    }
+
+    // Connect room nodes to each other
+    for (ANavigationNode* RoomNode : RoomNodes)
+    {
+        for (ANavigationNode* OtherRoomNode : RoomNodes)
+        {
+            if (RoomNode != OtherRoomNode && FVector::Dist(RoomNode->GetActorLocation(), OtherRoomNode->GetActorLocation()) <= RoomSize)
+            {
+                RoomNode->ConnectedNodes.Add(OtherRoomNode);
+            }
+        }
+    }
+
+    // Connect corridor nodes to room nodes and selectively to other corridor nodes
+    for (ANavigationNode* CorridorNode : CorridorNodes)
+    {
+        // Connect corridor nodes to nearby room nodes
+        for (ANavigationNode* RoomNode : RoomNodes)
+        {
+            if (FVector::Dist(CorridorNode->GetActorLocation(), RoomNode->GetActorLocation()) <= RoomSize)
+            {
+                CorridorNode->ConnectedNodes.Add(RoomNode);
+                RoomNode->ConnectedNodes.Add(CorridorNode);
+            }
+        }
+
+        // Connect corridor nodes to other corridor nodes only if they’re not immediately adjacent
+        for (ANavigationNode* OtherCorridorNode : CorridorNodes)
+        {
+            if (CorridorNode != OtherCorridorNode)
+            {
+                float Distance = FVector::Dist(CorridorNode->GetActorLocation(), OtherCorridorNode->GetActorLocation());
+
+                // Only connect if the distance is within range but not too close
+                if (Distance > RoomSize * 0.5f && Distance <= RoomSize)  // Adjust the 0.5f factor as needed
+                {
+                    CorridorNode->ConnectedNodes.Add(OtherCorridorNode);
+                }
+            }
+        }
+    }
+}
+
+bool UPathfindingSubsystem::IsCorridorNode(ANavigationNode* Node)
+{
+	// Determine if a node is part of a corridor based on naming, tag, or another property
+	return Node->GetActorLabel().Contains("Corridor"); // Adjust based on your naming/tagging setup
 }

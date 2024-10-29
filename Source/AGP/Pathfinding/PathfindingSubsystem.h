@@ -58,6 +58,10 @@ public:
 
 	void UpdatePathfindingNodes(const TArray<FVector>& RoomLocations, int32 MapWidth, int32 MapHeight, float RoomSize);
 
+	//bool NoNearbyAlternative(ANavigationNode* Node, ANavigationNode* NeighborNode, float RoomSize);
+
+	bool IsCorridorNode(ANavigationNode* Node);
+
 protected:
 	
 	TArray<ANavigationNode*> Nodes;
