@@ -5,11 +5,27 @@
 #include "AGP/Characters/EnemyCharacter.h"
 #include "EngineUtils.h"
 #include "NavigationNode.h"
+#include "Components/BoxComponent.h"
 
 void UPathfindingSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Creating the UPathfindingSubsystem."))
 	PopulateNodes();
+
+	TArray<AActor*> HidingSpots;
+	for(TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		AActor* CheckActor = *It;
+
+		//check if actor has hideableobject tag
+		if(CheckActor->ActorHasTag("HideableObject"))
+		{
+			HidingSpots.Add(CheckActor);
+			UE_LOG(LogTemp, Error, TEXT("hiding spots: %d"), HidingSpots.Num());
+		}
+	}
+
+	AddHidingSpotNode(HidingSpots);
 }
 
 TArray<FVector> UPathfindingSubsystem::GetWaypointPositions() const
@@ -341,4 +357,49 @@ bool UPathfindingSubsystem::IsLocationAboveSolidGround(const FVector& Location) 
 
 	// Return true if the trace hits something (indicating solid ground)
 	return bHit;
+}
+
+void UPathfindingSubsystem::AddHidingSpotNode(TArray<AActor*> HidingSpots)
+{
+	//get location of box collider
+	for(AActor* HidingSpot : HidingSpots)
+	{
+		if(HidingSpot)
+		{
+			UBoxComponent* BoxCollider = Cast<UBoxComponent>(HidingSpot->GetComponentByClass(UBoxComponent::StaticClass()));
+
+			FVector Spot = BoxCollider->GetComponentLocation();
+			Spot.Z -= 96;
+
+			ANavigationNode* HidingNode = GetWorld()->SpawnActor<ANavigationNode>(ANavigationNode::StaticClass(), Spot, FRotator::ZeroRotator);
+
+			if(HidingNode)
+			{
+				Nodes.Add(HidingNode);
+				UE_LOG(LogTemp, Error, TEXT("Added new hiding spot node"));
+				ConnectToOtherNodes(HidingNode);
+			} else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Couldn't add new hiding spot node"));
+			}
+		}
+	}
+	//add node to hiding spot
+}
+
+void UPathfindingSubsystem::ConnectToOtherNodes(ANavigationNode* HidingNode)
+{
+	//if a node is close to new hiding spot node, add a connection between them
+	for(ANavigationNode* Node : Nodes)
+	{
+		if(Node != HidingNode)
+		{
+			float distance = FVector::Distance(Node->GetActorLocation(), HidingNode->GetActorLocation());
+			if(distance <= 250.0f)
+			{
+				HidingNode->ConnectedNodes.Add(Node);
+				Node->ConnectedNodes.Add(HidingNode);
+			}
+		}
+	}
 }

@@ -22,7 +22,9 @@ enum class EEnemyState : uint8
 {
 	Patrol,
 	Engage,
-	Evade
+	Evade,
+	Examine,
+	Hiding
 };
 
 /**
@@ -58,6 +60,28 @@ protected:
 	 * Logic that controls the enemy character when in the Evade state.
 	 */
 	void TickEvade();
+
+	//EXAMINE FUNCTIONS
+	void GetHidingSpots();
+	TArray<AActor*> HidingSpots;
+
+	bool IsEnemyNearHidingSpot();
+	AActor* GetNearestHidingSpot();
+	AActor* NearestHidingSpot;
+
+	bool IsHidingSpotExamined(AActor* Spot);
+	TArray<AActor*> CheckedHidingSpots;
+
+	void GoToHidingSpot();
+
+	bool IsPlayerHiding(AActor* CurrentSpot);
+	bool AtSpot = false;
+
+	void TickExamine();
+	float ExamineTimer = 0.0f;
+
+	//HIDING FUNCTIONS
+	void TickHiding();
 
 	/**
 	 * A function bound to the UPawnSensingComponent's OnSeePawn event. This will set the SensedCharacter variable

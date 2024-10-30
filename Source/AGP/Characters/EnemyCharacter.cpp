@@ -25,6 +25,8 @@ void AEnemyCharacter::BeginPlay()
 
 	// DO NOTHING IF NOT ON THE SERVER
 	if (GetLocalRole() != ROLE_Authority) return;
+
+	GetHidingSpots();
 	
 	PathfindingSubsystem = GetWorld()->GetSubsystem<UPathfindingSubsystem>();
 	if (PathfindingSubsystem)
@@ -150,6 +152,154 @@ void AEnemyCharacter::TickEvade()
 	MoveAlongPath();
 }
 
+//add all hiding spots in the world to HidingSpots array
+void AEnemyCharacter::GetHidingSpots()
+{
+	for(TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		AActor* CheckActor = *It;
+
+		//check if actor has hideableobject tag
+		if(CheckActor->ActorHasTag("HideableObject"))
+		{
+			HidingSpots.Add(CheckActor);
+			UE_LOG(LogTemp, Error, TEXT("hiding spots: %d"), HidingSpots.Num());
+		}
+	}
+}
+
+//check if enemy is near (< 300.0f) a hiding spot
+bool AEnemyCharacter::IsEnemyNearHidingSpot()
+{
+	if(HidingSpots.IsEmpty())
+	{
+		GetHidingSpots();
+	}
+
+	for(AActor* HidingSpot : HidingSpots)
+	{
+		if(HidingSpot)
+		{
+			float Distance = FVector::Distance(GetActorLocation(), HidingSpot->GetActorLocation());
+
+			if(Distance < 300.0f)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Enemy near a hiding spot"));
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+//get nearest hiding spot to enemy
+AActor* AEnemyCharacter::GetNearestHidingSpot()
+{
+	UE_LOG(LogTemp, Error, TEXT("Getting nearest hiding spot"));
+
+	if(HidingSpots.IsEmpty())
+	{
+		GetHidingSpots();
+	}
+
+	NearestHidingSpot = nullptr;
+	float NearestDistance = MAX_FLT;
+
+	for(AActor* HidingSpot : HidingSpots)
+	{
+		if(HidingSpot)
+		{
+			float Distance = FVector::Distance(GetActorLocation(), HidingSpot->GetActorLocation());
+			{
+				if(Distance < NearestDistance)
+				{
+					NearestDistance = Distance;
+					NearestHidingSpot = HidingSpot;
+				}
+			}
+		}
+	}
+	return NearestHidingSpot;
+}
+
+//check if spot has been examined
+bool AEnemyCharacter::IsHidingSpotExamined(AActor* Spot)
+{
+	if(CheckedHidingSpots.Contains(Spot))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Hiding spot already examined"));
+		return true;
+	}
+	return false;
+}
+
+//go to hiding spot (KINDA BROKEN ENEMY DOESN'T GO TO SPOT BUT IS NEAR IT AND JUST STARES AT IT BUT IT WORKS FOR THIS BEHAVIOUR)
+void AEnemyCharacter::GoToHidingSpot()
+{
+	if(CurrentPath.IsEmpty())
+	{
+		//UBoxComponent* BoxCollider = Cast<UBoxComponent>(NearestHidingSpot->GetComponentByClass(UBoxComponent::StaticClass()));
+
+		//FVector Spot = BoxCollider->GetComponentLocation();
+		//Spot.Z -= 96;
+		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), NearestHidingSpot->GetActorLocation());
+		//CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), Spot);
+	}
+	MoveAlongPath();
+	AtSpot = true;
+}
+
+//check if player in hiding spot
+bool AEnemyCharacter::IsPlayerHiding(AActor* CurrentSpot)
+{
+	APlayerCharacter* Player = FindPlayer();
+
+	if(Player)
+	{
+		float Distance = FVector::Distance(Player->GetActorLocation(), CurrentSpot->GetActorLocation());
+
+		if(Distance < 200.0f)
+		{
+			UE_LOG(LogTemp, Error, TEXT("PLAYER HIDING"));
+			return true;
+		} else
+		{
+			UE_LOG(LogTemp, Error, TEXT("PLAYER NOT HIDING"));
+		}
+	}
+	return false;
+}
+
+void AEnemyCharacter::TickExamine()
+{
+	if(!AtSpot)
+	{
+		GoToHidingSpot();
+	}
+
+	//don't sense player if they're hiding
+	if(IsPlayerHiding(NearestHidingSpot))
+	{
+		SensedCharacter = nullptr;
+	}
+
+	//add spot to checked after examine is finished
+	if(ExamineTimer >= 5.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Timer: %f"), ExamineTimer);
+
+		CheckedHidingSpots.Add(NearestHidingSpot);
+		NearestHidingSpot = nullptr;
+		CurrentPath.Empty();
+	}
+}
+
+void AEnemyCharacter::TickHiding()
+{
+	GoToHidingSpot();
+	UE_LOG(LogTemp, Display, TEXT("Enemy is now hiding"));
+}
+
 void AEnemyCharacter::OnSensedPawn(APawn* SensedActor)
 {
 	if (APlayerCharacter* Player = Cast<APlayerCharacter>(SensedActor))
@@ -187,6 +337,18 @@ void AEnemyCharacter::Tick(float DeltaTime)
 	{
 	case EEnemyState::Patrol:
 		TickPatrol();
+
+		if(IsEnemyNearHidingSpot())
+		{
+			GetNearestHidingSpot();
+
+			if(NearestHidingSpot && !IsHidingSpotExamined(NearestHidingSpot))
+			{
+				GoToHidingSpot();
+				CurrentState = EEnemyState::Examine;
+			}
+		}
+		
 		if (SensedCharacter)
 		{
 			if (HealthComponent->GetCurrentHealthPercentage() >= 0.4f)
@@ -220,6 +382,29 @@ void AEnemyCharacter::Tick(float DeltaTime)
 		{
 			CurrentState = EEnemyState::Patrol;
 		}
+		break;
+	case EEnemyState::Examine:
+		if(AtSpot)
+		{
+			ExamineTimer += DeltaTime;
+			TickExamine();
+
+			if(ExamineTimer >= 5.0f)
+			{
+				ExamineTimer = 0.0f;
+				AtSpot = false;
+				CurrentPath.Empty();
+				if(HealthComponent->GetCurrentHealthPercentage() < 0.4f)
+				{
+					CurrentState = EEnemyState::Evade;
+				}
+				CurrentState = EEnemyState::Patrol;
+			}
+		}
+		break;
+	case EEnemyState::Hiding:
+		TickHiding();
+		CurrentPath.Empty();
 		break;
 	}
 }
