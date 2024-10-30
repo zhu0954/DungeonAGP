@@ -2,7 +2,7 @@
 
 
 #include "PathfindingSubsystem.h"
-
+#include "AGP/Characters/EnemyCharacter.h"
 #include "EngineUtils.h"
 #include "NavigationNode.h"
 
@@ -42,58 +42,18 @@ TArray<FVector> UPathfindingSubsystem::GetPathAway(const FVector& StartLocation,
 
 void UPathfindingSubsystem::PlaceProceduralNodes(const TArray<FVector>& LandscapeVertexData, int32 MapWidth, int32 MapHeight)
 {
-	// Need to destroy all of the current nodes in the world.
+	// Clear existing nodes
 	RemoveAllNodes();
-	
-	// Then create and place all the nodes and store them in the ProcedurallyPlacedNodes array.
-	for (int Y = 0; Y < MapHeight; Y++)
+
+	// Place nodes if they are above solid ground
+	for (const FVector& Location : LandscapeVertexData)
 	{
-		for (int X = 0; X < MapWidth; X++)
+		if (IsLocationAboveSolidGround(Location)) // Use the existing function to verify solid ground
 		{
-			// Spawn the node in
 			if (ANavigationNode* Node = GetWorld()->SpawnActor<ANavigationNode>())
 			{
-				Node->SetActorLocation(LandscapeVertexData[Y * MapWidth + X]);
+				Node->SetActorLocation(Location);
 				ProcedurallyPlacedNodes.Add(Node);
-			} else
-			{
-				UE_LOG(LogTemp, Error, TEXT("Unable to spawn a node for some reason. This is bad!"))
-			}
-			
-		}
-	}
-	// Then add connections between all adjacent nodes.
-	for (int Y = 0; Y < MapHeight; Y++)
-	{
-		for (int X = 0; X < MapWidth; X++)
-		{
-			if (ANavigationNode* CurrentNode = ProcedurallyPlacedNodes[Y * MapWidth + X]) // Make sure it's a valid ptr.
-			{
-				// ADD CONNECTIONS:
-				// Add Left
-				if (X != MapWidth-1)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[Y * MapWidth + X+1]);
-				// Add Up
-				if (Y != MapHeight-1)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[(Y+1) * MapWidth + X]);
-				// Add Right
-				if (X != 0)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[Y * MapWidth + X-1]);
-				// Add Down
-				if (Y != 0)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[(Y-1) * MapWidth + X]);
-				// Add UpLeft
-				if (X != MapWidth-1 && Y != MapHeight-1)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[(Y+1) * MapWidth + X+1]);
-				// Add UpRight
-				if (X != 0 && Y != MapHeight-1)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[(Y+1) * MapWidth + X-1]);
-				// Add DownRight
-				if (X != 0 && Y != 0)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[(Y-1) * MapWidth+ X-1]);
-				// Add DownLeft
-				if (X != MapWidth-1 && Y != 0)
-					CurrentNode->ConnectedNodes.Add(ProcedurallyPlacedNodes[(Y-1) * MapWidth + X+1]);
 			}
 		}
 	}
@@ -359,4 +319,26 @@ bool UPathfindingSubsystem::IsCorridorNode(ANavigationNode* Node)
 {
 	// Determine if a node is part of a corridor based on naming, tag, or another property
 	return Node->GetActorLabel().Contains("Corridor"); // Adjust based on your naming/tagging setup
+}
+
+bool UPathfindingSubsystem::IsLocationAboveSolidGround(const FVector& Location) const
+{
+	FVector Start = Location + FVector(0, 0, 100.0f); // Start a bit above the location
+	FVector End = Location - FVector(0, 0, 1000.0f);  // Trace downward
+
+	FHitResult HitResult;
+
+	// Perform the line trace
+	bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		ECC_Visibility // You could use a custom channel if needed
+	);
+
+	// Draw a debug line to visualize the trace
+	DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Green : FColor::Red, false, 1.0f);
+
+	// Return true if the trace hits something (indicating solid ground)
+	return bHit;
 }

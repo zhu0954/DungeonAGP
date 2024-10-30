@@ -62,6 +62,13 @@ public:
 
 	bool IsCorridorNode(ANavigationNode* Node);
 
+	/**
+	 * Checks if the location is above solid ground by performing a line trace.
+	 * @param Location The location to check for solid ground.
+	 * @return true if the location is above solid ground, false otherwise.
+	 */
+	bool IsLocationAboveSolidGround(const FVector& Location) const;
+
 protected:
 	
 	TArray<ANavigationNode*> Nodes;

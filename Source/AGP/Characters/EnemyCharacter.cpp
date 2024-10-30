@@ -5,6 +5,7 @@
 #include "EngineUtils.h"
 #include "HealthComponent.h"
 #include "PlayerCharacter.h"
+#include "DrawDebugHelpers.h"
 #include "AGP/Pathfinding/PathfindingSubsystem.h"
 #include "Perception/PawnSensingComponent.h"
 
@@ -43,62 +44,109 @@ void AEnemyCharacter::BeginPlay()
 
 void AEnemyCharacter::MoveAlongPath()
 {
-	// Execute the path. Should be called each tick.
-
-	// If the path is empty do nothing.
 	if (CurrentPath.IsEmpty()) return;
-	
-	// 1. Move towards the current stage of the path.
-	//		a. Calculate the direction from the current position to the target of the current stage of the path.
-	FVector MovementDirection = CurrentPath[CurrentPath.Num()-1] - GetActorLocation();
+
+	// Get the next target location in the path
+	FVector NextLocation = CurrentPath[CurrentPath.Num() - 1];
+	FVector MovementDirection = NextLocation - GetActorLocation();
 	MovementDirection.Normalize();
-	//		b. Apply movement in that direction.
-	AddMovementInput(MovementDirection);
-	// 2. Check if it is close to the current stage of the path then pop it off.
-	if (FVector::Distance(GetActorLocation(), CurrentPath[CurrentPath.Num() - 1]) < PathfindingError)
+
+	// Perform a line trace from the enemy to the ground
+	FVector Start = GetActorLocation() + FVector(0, 0, 50.0f);  // A bit above the actor
+	FVector End = GetActorLocation() - FVector(0, 0, 1000.0f);  // Trace down
+
+	FHitResult HitResult;
+	bool bOnSolidGround = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility);
+
+	// Debug visualization of line trace
+	DrawDebugLine(GetWorld(), Start, End, bOnSolidGround ? FColor::Green : FColor::Red, false, 1.0f, 0, 5.0f);
+
+	if (bOnSolidGround && HitResult.bBlockingHit)
 	{
-		CurrentPath.Pop();
+		// Update the last known good location
+		LastKnownGoodLocation = GetActorLocation();
+
+		// Move towards the target location
+		AddMovementInput(MovementDirection);
+
+		// Check if the enemy is close enough to the current target in the path
+		if (FVector::Distance(GetActorLocation(), NextLocation) < PathfindingError)
+		{
+			CurrentPath.Pop();
+		}
+	}
+	else
+	{
+		// If not on solid ground, stop moving and clear the current path
+		CurrentPath.Empty();
+
+		// Move back to the last known good location
+		FVector ReturnDirection = LastKnownGoodLocation - GetActorLocation();
+		ReturnDirection.Normalize();
+		AddMovementInput(ReturnDirection);
+
+		// If close enough to the last known good location, try to find a new path
+		if (FVector::Distance(GetActorLocation(), LastKnownGoodLocation) < PathfindingError)
+		{
+			CurrentPath.Empty();
+			FindNewPath();
+		}
 	}
 }
+
+void AEnemyCharacter::FindNewPath()
+{
+	if (CurrentState == EEnemyState::Patrol)
+	{
+		CurrentPath = PathfindingSubsystem->GetRandomPath(GetActorLocation());
+	}
+	else if (CurrentState == EEnemyState::Engage && SensedCharacter)
+	{
+		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), SensedCharacter->GetActorLocation());
+	}
+	else if (CurrentState == EEnemyState::Evade && SensedCharacter)
+	{
+		CurrentPath = PathfindingSubsystem->GetPathAway(GetActorLocation(), SensedCharacter->GetActorLocation());
+	}
+
+	// Validate and remove points that aren't above solid ground
+	CurrentPath.RemoveAll([this](const FVector& Location) {
+		return !IsLocationAboveSolidGround(Location);
+	});
+}
+
 
 void AEnemyCharacter::TickPatrol()
 {
 	if (CurrentPath.IsEmpty())
 	{
-		CurrentPath = PathfindingSubsystem->GetRandomPath(GetActorLocation());
+		FindNewPath();
 	}
+
 	MoveAlongPath();
 }
 
 void AEnemyCharacter::TickEngage()
 {
-	
 	if (!SensedCharacter) return;
-	
+
 	if (CurrentPath.IsEmpty())
 	{
-		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), SensedCharacter->GetActorLocation());
+		FindNewPath();
 	}
+
 	MoveAlongPath();
-	if (HasWeapon())
-	{
-		if (WeaponComponent->IsMagazineEmpty())
-		{
-			Reload();
-		}
-		Fire(SensedCharacter->GetActorLocation());
-	}
 }
 
 void AEnemyCharacter::TickEvade()
 {
-	// Find the player and return if it can't find it.
 	if (!SensedCharacter) return;
 
 	if (CurrentPath.IsEmpty())
 	{
-		CurrentPath = PathfindingSubsystem->GetPathAway(GetActorLocation(), SensedCharacter->GetActorLocation());
+		FindNewPath();
 	}
+
 	MoveAlongPath();
 }
 
@@ -196,5 +244,28 @@ APlayerCharacter* AEnemyCharacter::FindPlayer() const
 		UE_LOG(LogTemp, Error, TEXT("Unable to find the Player Character in the world."))
 	}
 	return Player;
+}
+
+// Implementation of the line trace function
+bool AEnemyCharacter::IsLocationAboveSolidGround(const FVector& Location) const
+{
+	FVector Start = Location + FVector(0, 0, 100.0f); // Start a bit above the location
+	FVector End = Location - FVector(0, 0, 1000.0f); // Trace downward
+
+	FHitResult HitResult;
+
+	// Perform the line trace
+	bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		ECC_Visibility  // You could use a custom channel if needed
+	);
+
+	// Draw a debug line to visualize the trace
+	DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Green : FColor::Red, false, 1.0f);
+
+	// Return true if the trace hits something (indicating solid ground)
+	return bHit;
 }
 

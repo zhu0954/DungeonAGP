@@ -111,10 +111,17 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float PathfindingError = 150.0f; // 150 cm from target by default.
 
+
+	// Tracks the last known valid location (above solid ground) for this enemy.
+	UPROPERTY(VisibleAnywhere)
+	FVector LastKnownGoodLocation;
+
 public:	
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	bool IsLocationAboveSolidGround(const FVector& Location) const;
 
 private:
 	
@@ -123,5 +130,7 @@ private:
 	 * @return A pointer to one APlayerCharacter actor in the world.
 	 */
 	APlayerCharacter* FindPlayer() const;
+
+	void FindNewPath();
 
 };
