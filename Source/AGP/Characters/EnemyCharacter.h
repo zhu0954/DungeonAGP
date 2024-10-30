@@ -116,6 +116,8 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	FVector LastKnownGoodLocation;
 
+	
+
 public:	
 
 	virtual void Tick(float DeltaTime) override;
