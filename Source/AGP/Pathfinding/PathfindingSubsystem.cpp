@@ -402,4 +402,4 @@ void UPathfindingSubsystem::ConnectToOtherNodes(ANavigationNode* HidingNode)
 			}
 		}
 	}
-}
+} 

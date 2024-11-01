@@ -46,32 +46,36 @@ void AEnemyCharacter::BeginPlay()
 
 void AEnemyCharacter::MoveAlongPath()
 {
-	if (CurrentPath.IsEmpty()) return;
+	if (CurrentPath.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No path available for movement."));
+		return;
+	}
 
 	// Get the next target location in the path
 	FVector NextLocation = CurrentPath[CurrentPath.Num() - 1];
-	FVector MovementDirection = NextLocation - GetActorLocation();
-	MovementDirection.Normalize();
+	FVector MovementDirection = (NextLocation - GetActorLocation()).GetSafeNormal();
 
-	// Perform a line trace from the enemy to the ground
-	FVector Start = GetActorLocation() + FVector(0, 0, 50.0f);  // A bit above the actor
-	FVector End = GetActorLocation() - FVector(0, 0, 1000.0f);  // Trace down
+	// Debug log the movement direction
+	UE_LOG(LogTemp, Display, TEXT("Moving towards: %s"), *NextLocation.ToString());
+
+	// Perform a line trace from the enemy to check if above solid ground
+	FVector Start = GetActorLocation() + FVector(0, 0, 50.0f);
+	FVector End = GetActorLocation() - FVector(0, 0, 1000.0f);
 
 	FHitResult HitResult;
 	bool bOnSolidGround = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility);
 
-	// Debug visualization of line trace
+	// Debug visualization and logging of the line trace
 	DrawDebugLine(GetWorld(), Start, End, bOnSolidGround ? FColor::Green : FColor::Red, false, 1.0f, 0, 5.0f);
+	UE_LOG(LogTemp, Display, TEXT("On solid ground: %s"), bOnSolidGround ? TEXT("Yes") : TEXT("No"));
 
 	if (bOnSolidGround && HitResult.bBlockingHit)
 	{
-		// Update the last known good location
 		LastKnownGoodLocation = GetActorLocation();
-
-		// Move towards the target location
 		AddMovementInput(MovementDirection);
 
-		// Check if the enemy is close enough to the current target in the path
+		// Check if close enough to the current target in the path
 		if (FVector::Distance(GetActorLocation(), NextLocation) < PathfindingError)
 		{
 			CurrentPath.Pop();
@@ -79,15 +83,11 @@ void AEnemyCharacter::MoveAlongPath()
 	}
 	else
 	{
-		// If not on solid ground, stop moving and clear the current path
+		UE_LOG(LogTemp, Warning, TEXT("Not on solid ground. Returning to last known good location."));
 		CurrentPath.Empty();
-
-		// Move back to the last known good location
-		FVector ReturnDirection = LastKnownGoodLocation - GetActorLocation();
-		ReturnDirection.Normalize();
+		FVector ReturnDirection = (LastKnownGoodLocation - GetActorLocation()).GetSafeNormal();
 		AddMovementInput(ReturnDirection);
 
-		// If close enough to the last known good location, try to find a new path
 		if (FVector::Distance(GetActorLocation(), LastKnownGoodLocation) < PathfindingError)
 		{
 			CurrentPath.Empty();
@@ -236,17 +236,44 @@ bool AEnemyCharacter::IsHidingSpotExamined(AActor* Spot)
 //go to hiding spot (KINDA BROKEN ENEMY DOESN'T GO TO SPOT BUT IS NEAR IT AND JUST STARES AT IT BUT IT WORKS FOR THIS BEHAVIOUR)
 void AEnemyCharacter::GoToHidingSpot()
 {
-	if(CurrentPath.IsEmpty())
-	{
-		//UBoxComponent* BoxCollider = Cast<UBoxComponent>(NearestHidingSpot->GetComponentByClass(UBoxComponent::StaticClass()));
+	UE_LOG(LogTemp, Display, TEXT("Enemy attempting to move to hiding spot."));
 
-		//FVector Spot = BoxCollider->GetComponentLocation();
-		//Spot.Z -= 96;
-		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), NearestHidingSpot->GetActorLocation());
-		//CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), Spot);
+	if (!NearestHidingSpot)
+	{
+		NearestHidingSpot = GetNearestHidingSpot();
+		if (!NearestHidingSpot)
+		{
+			UE_LOG(LogTemp, Error, TEXT("No hiding spot found!"));
+			return;
+		}
 	}
+
+	if (CurrentPath.IsEmpty())
+	{
+		FVector SpotLocation = NearestHidingSpot->GetActorLocation();
+		UE_LOG(LogTemp, Warning, TEXT("Target Hiding Spot Location: %s"), *SpotLocation.ToString());
+        
+		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), SpotLocation);
+
+		if (CurrentPath.IsEmpty())
+		{
+			UE_LOG(LogTemp, Error, TEXT("No path generated to hiding spot!"));
+			return;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("Path generated to hiding spot with %d points."), CurrentPath.Num());
+		}
+	}
+
 	MoveAlongPath();
-	AtSpot = true;
+	AtSpot = FVector::Distance(GetActorLocation(), NearestHidingSpot->GetActorLocation()) < PathfindingError;
+
+	if (AtSpot)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Enemy reached the hiding spot."));
+		CurrentPath.Empty();
+	}
 }
 
 //check if player in hiding spot
@@ -270,29 +297,43 @@ bool AEnemyCharacter::IsPlayerHiding(AActor* CurrentSpot)
 	return false;
 }
 
-void AEnemyCharacter::TickExamine()
+void AEnemyCharacter::TickExamine(float DeltaTime)
 {
-	if(!AtSpot)
+	UE_LOG(LogTemp, Display, TEXT("Enemy is in Examine State."));
+
+	if (!AtSpot)
 	{
+		UE_LOG(LogTemp, Display, TEXT("Enemy moving to hiding spot."));
 		GoToHidingSpot();
 	}
 
-	//don't sense player if they're hiding
-	if(IsPlayerHiding(NearestHidingSpot))
+	if (IsPlayerHiding(NearestHidingSpot))
 	{
-		SensedCharacter = nullptr;
+		UE_LOG(LogTemp, Display, TEXT("Player detected hiding at the current spot, hiding behavior suppressed."));
+		SensedCharacter = nullptr;  // Prevent detection if the player is hiding
 	}
 
-	//add spot to checked after examine is finished
-	if(ExamineTimer >= 5.0f)
+	// Increment the timer by DeltaTime
+	ExamineTimer += DeltaTime;
+	UE_LOG(LogTemp, Display, TEXT("Examine timer: %f"), ExamineTimer);
+
+	if (ExamineTimer >= 5.0f)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Timer: %f"), ExamineTimer);
+		UE_LOG(LogTemp, Warning, TEXT("Examination complete. Transitioning to Hiding mode."));
 
 		CheckedHidingSpots.Add(NearestHidingSpot);
 		NearestHidingSpot = nullptr;
 		CurrentPath.Empty();
+
+		// Reset examine variables
+		ExamineTimer = 0.0f;
+		AtSpot = false;
+
+		// Transition to Hiding mode
+		CurrentState = EEnemyState::Hiding;
 	}
 }
+
 
 void AEnemyCharacter::TickHiding()
 {
@@ -326,87 +367,79 @@ void AEnemyCharacter::UpdateSight()
 // Called every frame
 void AEnemyCharacter::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 
-	// DO NOTHING UNLESS IT IS ON THE SERVER
-	if (GetLocalRole() != ROLE_Authority) return;
-	
-	UpdateSight();
-	
-	switch(CurrentState)
-	{
-	case EEnemyState::Patrol:
-		TickPatrol();
+    if (GetLocalRole() != ROLE_Authority) return;  // Only execute on server
 
-		if(IsEnemyNearHidingSpot())
-		{
-			GetNearestHidingSpot();
+    UpdateSight();
+    
+    switch(CurrentState)
+    {
+        case EEnemyState::Patrol:
+            UE_LOG(LogTemp, Display, TEXT("Enemy is in Patrol State."));
+            TickPatrol();
 
-			if(NearestHidingSpot && !IsHidingSpotExamined(NearestHidingSpot))
-			{
-				GoToHidingSpot();
-				CurrentState = EEnemyState::Examine;
-			}
-		}
-		
-		if (SensedCharacter)
-		{
-			if (HealthComponent->GetCurrentHealthPercentage() >= 0.4f)
-			{
-				CurrentState = EEnemyState::Engage;
-			} else
-			{
-				CurrentState = EEnemyState::Evade;
-			}
-			CurrentPath.Empty();
-		}
-		break;
-	case EEnemyState::Engage:
-		TickEngage();
-		if (HealthComponent->GetCurrentHealthPercentage() < 0.4f)
-		{
-			CurrentPath.Empty();
-			CurrentState = EEnemyState::Evade;
-		} else if (!SensedCharacter)
-		{
-			CurrentState = EEnemyState::Patrol;
-		}
-		break;
-	case EEnemyState::Evade:
-		TickEvade();
-		if (HealthComponent->GetCurrentHealthPercentage() >= 0.4f)
-		{
-			CurrentPath.Empty();
-			CurrentState = EEnemyState::Engage;
-		} else if (!SensedCharacter)
-		{
-			CurrentState = EEnemyState::Patrol;
-		}
-		break;
-	case EEnemyState::Examine:
-		if(AtSpot)
-		{
-			ExamineTimer += DeltaTime;
-			TickExamine();
+            if (IsEnemyNearHidingSpot())
+            {
+                UE_LOG(LogTemp, Display, TEXT("Enemy found a nearby hiding spot."));
+                GetNearestHidingSpot();
 
-			if(ExamineTimer >= 5.0f)
-			{
-				ExamineTimer = 0.0f;
-				AtSpot = false;
-				CurrentPath.Empty();
-				if(HealthComponent->GetCurrentHealthPercentage() < 0.4f)
-				{
-					CurrentState = EEnemyState::Evade;
-				}
-				CurrentState = EEnemyState::Patrol;
-			}
-		}
-		break;
-	case EEnemyState::Hiding:
-		TickHiding();
-		CurrentPath.Empty();
-		break;
-	}
+                if (NearestHidingSpot && !IsHidingSpotExamined(NearestHidingSpot))
+                {
+                    UE_LOG(LogTemp, Display, TEXT("Enemy approaching hiding spot for examination."));
+                    GoToHidingSpot();
+                    CurrentState = EEnemyState::Examine;
+                }
+            }
+
+            if (SensedCharacter)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Enemy senses a character."));
+                CurrentState = HealthComponent->GetCurrentHealthPercentage() >= 0.4f ? EEnemyState::Engage : EEnemyState::Evade;
+                CurrentPath.Empty();
+            }
+            break;
+        
+        case EEnemyState::Engage:
+            UE_LOG(LogTemp, Display, TEXT("Enemy is in Engage State."));
+            TickEngage();
+            if (HealthComponent->GetCurrentHealthPercentage() < 0.4f) 
+            {
+                UE_LOG(LogTemp, Display, TEXT("Enemy switching to Evade State due to low health."));
+                CurrentState = EEnemyState::Evade;
+            }
+            else if (!SensedCharacter)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Lost sight of character. Returning to Patrol State."));
+                CurrentState = EEnemyState::Patrol;
+            }
+            break;
+
+        case EEnemyState::Evade:
+            UE_LOG(LogTemp, Display, TEXT("Enemy is in Evade State."));
+            TickEvade();
+            if (HealthComponent->GetCurrentHealthPercentage() >= 0.4f) 
+            {
+                UE_LOG(LogTemp, Display, TEXT("Enemy regained health. Switching to Engage State."));
+                CurrentState = EEnemyState::Engage;
+            }
+            else if (!SensedCharacter)
+            {
+                UE_LOG(LogTemp, Display, TEXT("Lost sight of character. Returning to Patrol State."));
+                CurrentState = EEnemyState::Patrol;
+            }
+            break;
+        
+        case EEnemyState::Examine:
+            TickExamine(DeltaTime);  // Pass DeltaTime to TickExamine
+            break;
+
+        case EEnemyState::Hiding:
+            UE_LOG(LogTemp, Display, TEXT("Enemy is in Hiding State."));
+            TickHiding();
+            CurrentPath.Empty();
+            break;
+    }
 }
 
 // Called to bind functionality to input
@@ -453,4 +486,3 @@ bool AEnemyCharacter::IsLocationAboveSolidGround(const FVector& Location) const
 	// Return true if the trace hits something (indicating solid ground)
 	return bHit;
 }
-

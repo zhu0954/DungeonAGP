@@ -77,7 +77,7 @@ protected:
 	bool IsPlayerHiding(AActor* CurrentSpot);
 	bool AtSpot = false;
 
-	void TickExamine();
+	void TickExamine(float DeltaTime);
 	float ExamineTimer = 0.0f;
 
 	//HIDING FUNCTIONS
