@@ -7,6 +7,7 @@
 #include "PlayerCharacter.h"
 #include "DrawDebugHelpers.h"
 #include "AGP/Pathfinding/PathfindingSubsystem.h"
+#include "Components/BoxComponent.h"
 #include "Perception/PawnSensingComponent.h"
 
 // Sets default values
@@ -248,33 +249,31 @@ void AEnemyCharacter::GoToHidingSpot()
 		}
 	}
 
-	if (CurrentPath.IsEmpty())
+	// Use the location of the box collider directly
+	UBoxComponent* BoxCollider = Cast<UBoxComponent>(NearestHidingSpot->GetComponentByClass(UBoxComponent::StaticClass()));
+	if (BoxCollider)
 	{
-		FVector SpotLocation = NearestHidingSpot->GetActorLocation();
-		UE_LOG(LogTemp, Warning, TEXT("Target Hiding Spot Location: %s"), *SpotLocation.ToString());
+		FVector SpotLocation = BoxCollider->GetComponentLocation();
+		SpotLocation.Z -= 96;  // Adjust if needed to ensure it's at ground level
+		FVector MovementDirection = (SpotLocation - GetActorLocation()).GetSafeNormal();
         
-		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), SpotLocation);
+		AddMovementInput(MovementDirection);
 
-		if (CurrentPath.IsEmpty())
+		// Check if close enough to the hiding spot collider
+		float DistanceToSpot = FVector::Distance(GetActorLocation(), SpotLocation);
+		if (DistanceToSpot < PathfindingError)
 		{
-			UE_LOG(LogTemp, Error, TEXT("No path generated to hiding spot!"));
-			return;
-		}
-		else
-		{
-			UE_LOG(LogTemp, Display, TEXT("Path generated to hiding spot with %d points."), CurrentPath.Num());
+			AtSpot = true;
+			UE_LOG(LogTemp, Display, TEXT("Enemy reached the hiding spot."));
 		}
 	}
-
-	MoveAlongPath();
-	AtSpot = FVector::Distance(GetActorLocation(), NearestHidingSpot->GetActorLocation()) < PathfindingError;
-
-	if (AtSpot)
+	else
 	{
-		UE_LOG(LogTemp, Display, TEXT("Enemy reached the hiding spot."));
-		CurrentPath.Empty();
+		UE_LOG(LogTemp, Error, TEXT("No BoxCollider found for the hiding spot."));
 	}
 }
+
+
 
 //check if player in hiding spot
 bool AEnemyCharacter::IsPlayerHiding(AActor* CurrentSpot)
@@ -306,39 +305,43 @@ void AEnemyCharacter::TickExamine(float DeltaTime)
 		UE_LOG(LogTemp, Display, TEXT("Enemy moving to hiding spot."));
 		GoToHidingSpot();
 	}
-
-	if (IsPlayerHiding(NearestHidingSpot))
+	else
 	{
-		UE_LOG(LogTemp, Display, TEXT("Player detected hiding at the current spot, hiding behavior suppressed."));
-		SensedCharacter = nullptr;  // Prevent detection if the player is hiding
-	}
+		// Increment the timer by DeltaTime
+		ExamineTimer += DeltaTime;
+		UE_LOG(LogTemp, Display, TEXT("Examine timer: %f"), ExamineTimer);
 
-	// Increment the timer by DeltaTime
-	ExamineTimer += DeltaTime;
-	UE_LOG(LogTemp, Display, TEXT("Examine timer: %f"), ExamineTimer);
+		if (ExamineTimer >= 5.0f)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Examination complete. Transitioning to Hiding mode."));
 
-	if (ExamineTimer >= 5.0f)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Examination complete. Transitioning to Hiding mode."));
+			CheckedHidingSpots.Add(NearestHidingSpot);
+			NearestHidingSpot = nullptr;
 
-		CheckedHidingSpots.Add(NearestHidingSpot);
-		NearestHidingSpot = nullptr;
-		CurrentPath.Empty();
+			// Reset examine variables
+			ExamineTimer = 0.0f;
+			AtSpot = false;
 
-		// Reset examine variables
-		ExamineTimer = 0.0f;
-		AtSpot = false;
-
-		// Transition to Hiding mode
-		CurrentState = EEnemyState::Hiding;
+			// Transition to Hiding mode
+			CurrentState = EEnemyState::Hiding;
+		}
 	}
 }
 
 
 void AEnemyCharacter::TickHiding()
 {
+	UE_LOG(LogTemp, Display, TEXT("Enemy is in Hiding State."));
+
+	// Move towards the hiding spot
 	GoToHidingSpot();
-	UE_LOG(LogTemp, Display, TEXT("Enemy is now hiding"));
+
+	// Once the enemy reaches the hiding spot, it will remain there
+	if (AtSpot)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Enemy is now hiding."));
+		// Optionally you can add logic here to stop the enemy from further movement
+	}
 }
 
 void AEnemyCharacter::OnSensedPawn(APawn* SensedActor)

@@ -361,30 +361,20 @@ bool UPathfindingSubsystem::IsLocationAboveSolidGround(const FVector& Location) 
 
 void UPathfindingSubsystem::AddHidingSpotNode(TArray<AActor*> HidingSpots)
 {
-	//get location of box collider
-	for(AActor* HidingSpot : HidingSpots)
+	// Instead of adding nodes, just keep track of the hiding spot locations
+	for (AActor* CurrentHidingSpot : HidingSpots)  // Renamed from 'HidingSpot' to 'CurrentHidingSpot'
 	{
-		if(HidingSpot)
+		if (CurrentHidingSpot)
 		{
-			UBoxComponent* BoxCollider = Cast<UBoxComponent>(HidingSpot->GetComponentByClass(UBoxComponent::StaticClass()));
-
-			FVector Spot = BoxCollider->GetComponentLocation();
-			Spot.Z -= 96;
-
-			ANavigationNode* HidingNode = GetWorld()->SpawnActor<ANavigationNode>(ANavigationNode::StaticClass(), Spot, FRotator::ZeroRotator);
-
-			if(HidingNode)
+			UBoxComponent* CurrentBoxCollider = Cast<UBoxComponent>(CurrentHidingSpot->GetComponentByClass(UBoxComponent::StaticClass()));
+			if (CurrentBoxCollider)
 			{
-				Nodes.Add(HidingNode);
-				UE_LOG(LogTemp, Error, TEXT("Added new hiding spot node"));
-				ConnectToOtherNodes(HidingNode);
-			} else
-			{
-				UE_LOG(LogTemp, Error, TEXT("Couldn't add new hiding spot node"));
+				FVector SpotLocation = CurrentBoxCollider->GetComponentLocation();
+				SpotLocation.Z -= 96; // Adjust if needed to match ground level
+				UE_LOG(LogTemp, Error, TEXT("Added new hiding spot at: %s"), *SpotLocation.ToString());
 			}
 		}
 	}
-	//add node to hiding spot
 }
 
 void UPathfindingSubsystem::ConnectToOtherNodes(ANavigationNode* HidingNode)
