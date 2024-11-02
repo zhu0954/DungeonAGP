@@ -154,7 +154,7 @@ bool AEnemyCharacter::IsEnemyNearHidingSpot()
 		{
 			float Distance = FVector::Distance(GetActorLocation(), HidingSpot->GetActorLocation());
 
-			if(Distance < 300.0f)
+			if(Distance < 200.0f)
 			{
 				UE_LOG(LogTemp, Error, TEXT("Enemy near a hiding spot"));
 				return true;
