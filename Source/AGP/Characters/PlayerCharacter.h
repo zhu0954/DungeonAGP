@@ -1,17 +1,16 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "BaseCharacter.h"
 #include "InputActionValue.h"
-#include "PlayerCharacter.generated.h"
+#include "PlayerCharacter.generated.h"  // Ensure this is the last #include
 
 class UPlayerCharacterHUD;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
+
 UCLASS()
 class AGP_API APlayerCharacter : public ABaseCharacter
 {
@@ -53,8 +52,13 @@ protected:
 	TSubclassOf<UPlayerCharacterHUD> PlayerHUDClass;
 	UPROPERTY()
 	UPlayerCharacterHUD* PlayerHUD;
-	
-	
+
+private:
+	bool bCanMove = false; // Determines if the player can move
+
+	void EnableMovement(); // Function to enable movement after delay
+
+	FTimerHandle MovementEnableTimerHandle;
 
 public:	
 	// Called every frame
@@ -62,11 +66,8 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	
-private:
-	
+
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void FireWeapon(const FInputActionValue& Value);
-
 };

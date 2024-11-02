@@ -1,18 +1,15 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "PlayerCharacter.h"
-
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "HealthComponent.h"
 #include "PlayerCharacterHUD.h"
+#include "TimerManager.h"
 #include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+ 	// Set this character to call Tick() every frame.
 	PrimaryActorTick.bCanEverTick = true;
 }
 
@@ -63,6 +60,24 @@ void APlayerCharacter::BeginPlay()
 	}
 
 	DrawUI();
+
+	// Disable movement initially
+	bCanMove = false;
+
+	// Set a timer to enable movement after 20 seconds
+	GetWorld()->GetTimerManager().SetTimer(
+		MovementEnableTimerHandle,
+		this,
+		&APlayerCharacter::EnableMovement,
+		20.0f,  // Delay in seconds
+		false   // Do not loop
+	);
+}
+
+void APlayerCharacter::EnableMovement()
+{
+	bCanMove = true;
+	GetWorld()->GetTimerManager().ClearTimer(MovementEnableTimerHandle);
 }
 
 void APlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -78,7 +93,6 @@ void APlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 // Called to bind functionality to input
@@ -98,6 +112,8 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
 {
+	if (!bCanMove) return; // Only allow movement if bCanMove is true
+
 	const FVector2D MovementVector = Value.Get<FVector2D>();
 	const FVector ForwardVector = GetActorForwardVector();
 	AddMovementInput(ForwardVector, MovementVector.X);
@@ -123,4 +139,3 @@ void APlayerCharacter::FireWeapon(const FInputActionValue& Value)
 		Fire(BulletStartPosition->GetComponentLocation() + 10000.0f * CameraForward);
 	}
 }
-
