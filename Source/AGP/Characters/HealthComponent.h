@@ -25,6 +25,8 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	void SetMaxHealth(float NewMaxHealth);
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;

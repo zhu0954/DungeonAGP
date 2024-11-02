@@ -3,6 +3,7 @@
 
 #include "HealthComponent.h"
 
+#include "EnemyCharacter.h"
 #include "PlayerCharacter.h"
 #include "Net/UnrealNetwork.h"
 
@@ -74,19 +75,23 @@ void UHealthComponent::BeginPlay()
 
 void UHealthComponent::OnDeath()
 {
-	UE_LOG(LogTemp, Display, TEXT("The character has died."))
+	UE_LOG(LogTemp, Display, TEXT("The character has died."));
 	bIsDead = true;
-	// Tell the server base character that they have died.
 
-	// This OnDeath function will only be called on the server in the current setup but it is still worth
-	// checking that we are only handling this logic on the server.
 	if (GetOwnerRole() != ROLE_Authority) return;
-	
+
 	if (ABaseCharacter* Character = Cast<ABaseCharacter>(GetOwner()))
 	{
 		Character->OnDeath();
 	}
+
+	// Destroy the enemy if it's an enemy character
+	if (AEnemyCharacter* EnemyCharacter = Cast<AEnemyCharacter>(GetOwner()))
+	{
+		EnemyCharacter->Destroy();  // Destroy the enemy actor
+	}
 }
+
 
 void UHealthComponent::UpdateHealthBar()
 {
@@ -109,5 +114,12 @@ void UHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// ...
+}
+
+void UHealthComponent::SetMaxHealth(float NewMaxHealth)
+{
+	MaxHealth = NewMaxHealth;
+	CurrentHealth = MaxHealth;
+	UpdateHealthBar();
 }
 
