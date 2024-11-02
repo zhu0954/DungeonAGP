@@ -29,3 +29,19 @@ void UPlayerCharacterHUD::SetRemainingEnemiesText(int32 RemainingEnemies)
 		RemainingEnemiesText->SetText(FText::FromString(FString::FromInt(RemainingEnemies) + " enemies left." ));
 	}
 }
+
+void UPlayerCharacterHUD::SetTimerText(int32 Timer)
+{
+	if(TimerText)
+	{
+		TimerText->SetText(FText::FromString(FString::FromInt(Timer) + " seconds until you can seek!" ));
+	}
+}
+
+void UPlayerCharacterHUD::DeleteTimerText()
+{
+	if(TimerText)
+	{
+		TimerText->SetVisibility(ESlateVisibility::Hidden);
+	}
+}

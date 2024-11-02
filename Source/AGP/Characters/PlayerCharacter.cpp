@@ -99,6 +99,16 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	UpdateRemainingEnemiesText();
+	Timer -= DeltaTime;
+	if(Timer <= 0.0f)
+	{
+		if (PlayerHUD && IsLocallyControlled())
+		{
+			PlayerHUD->DeleteTimerText();
+		}
+		Timer = 0.0f;
+	}
+	UpdateTimerText();
 }
 
 // Called to bind functionality to input
@@ -160,4 +170,13 @@ void APlayerCharacter::UpdateRemainingEnemiesText()
 		PlayerHUD->SetRemainingEnemiesText(TotalEnemies);
 	}
 	UE_LOG(LogTemp, Error, TEXT("TotalEnemies: %d"), TotalEnemies);
+}
+
+void APlayerCharacter::UpdateTimerText()
+{
+	if (PlayerHUD && IsLocallyControlled())
+	{
+		PlayerHUD->SetTimerText(Timer);
+	}
+	UE_LOG(LogTemp, Error, TEXT("Timer: %d"), Timer);
 }

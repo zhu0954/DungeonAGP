@@ -71,4 +71,7 @@ public:
 	void Look(const FInputActionValue& Value);
 	void FireWeapon(const FInputActionValue& Value);
 	void UpdateRemainingEnemiesText();
+
+	void UpdateTimerText();
+	float Timer = 20.0f;
 };

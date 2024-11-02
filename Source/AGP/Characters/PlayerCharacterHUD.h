@@ -17,6 +17,8 @@ public:
 	void SetHealthBar(float HealthPercent);
 	void SetAmmoText(int32 RoundsRemaining, int32 MagazineSize);
 	void SetRemainingEnemiesText(int32 RemainingEnemies);
+	void SetTimerText(int32 Timer);
+	void DeleteTimerText();
 
 protected:
 
@@ -28,5 +30,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, meta=(BindWidget))
 	class UTextBlock* RemainingEnemiesText;
+
+	UPROPERTY(EditAnywhere, meta=(BindWidget))
+	class UTextBlock* TimerText;
 	
 };
