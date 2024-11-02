@@ -70,4 +70,5 @@ public:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void FireWeapon(const FInputActionValue& Value);
+	void UpdateRemainingEnemiesText();
 };

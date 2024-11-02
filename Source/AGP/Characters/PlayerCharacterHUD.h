@@ -16,6 +16,7 @@ class AGP_API UPlayerCharacterHUD : public UUserWidget
 public:
 	void SetHealthBar(float HealthPercent);
 	void SetAmmoText(int32 RoundsRemaining, int32 MagazineSize);
+	void SetRemainingEnemiesText(int32 RemainingEnemies);
 
 protected:
 
@@ -24,5 +25,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, meta=(BindWidget))
 	class UTextBlock* AmmoText;
+
+	UPROPERTY(EditAnywhere, meta=(BindWidget))
+	class UTextBlock* RemainingEnemiesText;
 	
 };

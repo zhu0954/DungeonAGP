@@ -1,4 +1,7 @@
 #include "PlayerCharacter.h"
+
+#include "EnemyCharacter.h"
+#include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "HealthComponent.h"
@@ -11,6 +14,7 @@ APlayerCharacter::APlayerCharacter()
 {
  	// Set this character to call Tick() every frame.
 	PrimaryActorTick.bCanEverTick = true;
+	
 }
 
 void APlayerCharacter::UpdateHealthBar(float HealthPercent)
@@ -43,6 +47,7 @@ void APlayerCharacter::DrawUI()
 		}
 	}
 	UpdateHealthBar(1.0f);
+	UpdateRemainingEnemiesText();
 }
 
 // Called when the game starts or when spawned
@@ -93,6 +98,7 @@ void APlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	UpdateRemainingEnemiesText();
 }
 
 // Called to bind functionality to input
@@ -138,4 +144,20 @@ void APlayerCharacter::FireWeapon(const FInputActionValue& Value)
 	{
 		Fire(BulletStartPosition->GetComponentLocation() + 10000.0f * CameraForward);
 	}
+}
+
+void APlayerCharacter::UpdateRemainingEnemiesText()
+{
+	int32 TotalEnemies = 0;
+	for(TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
+	{
+		TotalEnemies++;
+	}
+
+	//UpdateRemainingEnemiesText(TotalEnemies);
+	if (PlayerHUD && IsLocallyControlled())
+	{
+		PlayerHUD->SetRemainingEnemiesText(TotalEnemies);
+	}
+	UE_LOG(LogTemp, Error, TEXT("TotalEnemies: %d"), TotalEnemies);
 }

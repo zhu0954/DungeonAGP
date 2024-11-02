@@ -21,3 +21,11 @@ void UPlayerCharacterHUD::SetAmmoText(int32 RoundsRemaining, int32 MagazineSize)
 		AmmoText->SetText(FText::FromString(FString::FromInt(RoundsRemaining) + " / " + FString::FromInt(MagazineSize)));
 	}
 }
+
+void UPlayerCharacterHUD::SetRemainingEnemiesText(int32 RemainingEnemies)
+{
+	if (RemainingEnemiesText)
+	{
+		RemainingEnemiesText->SetText(FText::FromString(FString::FromInt(RemainingEnemies) + " enemies left." ));
+	}
+}
