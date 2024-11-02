@@ -349,7 +349,7 @@ bool UPathfindingSubsystem::IsLocationAboveSolidGround(const FVector& Location) 
 		HitResult,
 		Start,
 		End,
-		ECC_Visibility // You could use a custom channel if needed
+		ECC_Visibility 
 	);
 
 	// Draw a debug line to visualize the trace
