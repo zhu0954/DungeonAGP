@@ -41,6 +41,11 @@ void AEnemyCharacter::BeginPlay()
 	{
 		PawnSensingComponent->OnSeePawn.AddDynamic(this, &AEnemyCharacter::OnSensedPawn);
 	}
+
+	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
+	{
+		HealthComp->SetMaxHealth(1.0f);
+	}
 	
 	
 }
