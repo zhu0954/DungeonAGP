@@ -150,4 +150,11 @@ private:
 
 	void FindNewPath();
 
+	// Respawn location and threshold variables
+	UPROPERTY(EditAnywhere, Category="Respawn")
+	FVector RespawnLocation;
+
+	UPROPERTY(EditAnywhere, Category="Respawn")
+	float FallThreshold = -1000.0f;  // Set based on where the ground level ends
+
 };

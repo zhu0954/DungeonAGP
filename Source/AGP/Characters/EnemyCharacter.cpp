@@ -17,6 +17,10 @@ AEnemyCharacter::AEnemyCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 
 	PawnSensingComponent = CreateDefaultSubobject<UPawnSensingComponent>("Pawn Sensing Component");
+
+	// Set default respawn location and fall threshold
+	RespawnLocation = FVector(1400.0f, 4200.0f, 300.0f);  // Customize as needed
+	FallThreshold = -1000.0f;  // Customize based on game world
 }
 
 // Called when the game starts or when spawned
@@ -350,6 +354,20 @@ void AEnemyCharacter::Tick(float DeltaTime)
 
 	if (GetLocalRole() != ROLE_Authority) return;  // Only execute on server
 
+	// Check if the enemy has fallen below the threshold
+	if (GetActorLocation().Z < FallThreshold)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Enemy has fallen below the threshold and will respawn."));
+		
+		// Teleport the enemy to the respawn location and reset their state
+		SetActorLocation(RespawnLocation);
+		CurrentPath.Empty();  // Clear the current path to prevent movement conflicts
+		CurrentState = EEnemyState::Patrol;  // Reset state to Patrol
+		FindNewPath();  // Find a new path to start patrolling immediately
+		
+		return;  // Exit early if respawning
+	}
+	
 	UpdateSight();
     
 	switch(CurrentState)
