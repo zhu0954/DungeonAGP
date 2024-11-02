@@ -21,8 +21,6 @@ UENUM(BlueprintType)
 enum class EEnemyState : uint8
 {
 	Patrol,
-	Engage,
-	Evade,
 	Examine,
 	Hiding
 };
@@ -52,14 +50,7 @@ protected:
 	 * Logic that controls the enemy character when in the Patrol state.
 	 */
 	void TickPatrol();
-	/**
-	 * Logic that controls the enemy character when in the Engage state.
-	 */
-	void TickEngage();
-	/**
-	 * Logic that controls the enemy character when in the Evade state.
-	 */
-	void TickEvade();
+	
 
 	//EXAMINE FUNCTIONS
 	void GetHidingSpots();

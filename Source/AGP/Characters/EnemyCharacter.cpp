@@ -41,11 +41,6 @@ void AEnemyCharacter::BeginPlay()
 	{
 		PawnSensingComponent->OnSeePawn.AddDynamic(this, &AEnemyCharacter::OnSensedPawn);
 	}
-
-	if (UHealthComponent* HealthComp = FindComponentByClass<UHealthComponent>())
-	{
-		HealthComp->SetMaxHealth(1.0f);
-	}
 	
 	
 }
@@ -108,14 +103,7 @@ void AEnemyCharacter::FindNewPath()
 	{
 		CurrentPath = PathfindingSubsystem->GetRandomPath(GetActorLocation());
 	}
-	else if (CurrentState == EEnemyState::Engage && SensedCharacter)
-	{
-		CurrentPath = PathfindingSubsystem->GetPath(GetActorLocation(), SensedCharacter->GetActorLocation());
-	}
-	else if (CurrentState == EEnemyState::Evade && SensedCharacter)
-	{
-		CurrentPath = PathfindingSubsystem->GetPathAway(GetActorLocation(), SensedCharacter->GetActorLocation());
-	}
+	
 
 	// Validate and remove points that aren't above solid ground
 	CurrentPath.RemoveAll([this](const FVector& Location) {
@@ -134,29 +122,7 @@ void AEnemyCharacter::TickPatrol()
 	MoveAlongPath();
 }
 
-void AEnemyCharacter::TickEngage()
-{
-	if (!SensedCharacter) return;
 
-	if (CurrentPath.IsEmpty())
-	{
-		FindNewPath();
-	}
-
-	MoveAlongPath();
-}
-
-void AEnemyCharacter::TickEvade()
-{
-	if (!SensedCharacter) return;
-
-	if (CurrentPath.IsEmpty())
-	{
-		FindNewPath();
-	}
-
-	MoveAlongPath();
-}
 
 //add all hiding spots in the world to HidingSpots array
 void AEnemyCharacter::GetHidingSpots()
@@ -375,79 +341,49 @@ void AEnemyCharacter::UpdateSight()
 // Called every frame
 void AEnemyCharacter::Tick(float DeltaTime)
 {
-    Super::Tick(DeltaTime);
+	Super::Tick(DeltaTime);
 
-    if (GetLocalRole() != ROLE_Authority) return;  // Only execute on server
+	if (GetLocalRole() != ROLE_Authority) return;  // Only execute on server
 
-    UpdateSight();
+	UpdateSight();
     
-    switch(CurrentState)
-    {
-        case EEnemyState::Patrol:
-            UE_LOG(LogTemp, Display, TEXT("Enemy is in Patrol State."));
-            TickPatrol();
+	switch(CurrentState)
+	{
+	case EEnemyState::Patrol:
+		UE_LOG(LogTemp, Display, TEXT("Enemy is in Patrol State."));
+		TickPatrol();
 
-            if (IsEnemyNearHidingSpot())
-            {
-                UE_LOG(LogTemp, Display, TEXT("Enemy found a nearby hiding spot."));
-                GetNearestHidingSpot();
+		if (IsEnemyNearHidingSpot())
+		{
+			UE_LOG(LogTemp, Display, TEXT("Enemy found a nearby hiding spot."));
+			GetNearestHidingSpot();
 
-                if (NearestHidingSpot && !IsHidingSpotExamined(NearestHidingSpot))
-                {
-                    UE_LOG(LogTemp, Display, TEXT("Enemy approaching hiding spot for examination."));
-                    GoToHidingSpot();
-                    CurrentState = EEnemyState::Examine;
-                }
-            }
+			if (NearestHidingSpot && !IsHidingSpotExamined(NearestHidingSpot))
+			{
+				UE_LOG(LogTemp, Display, TEXT("Enemy approaching hiding spot for examination."));
+				GoToHidingSpot();
+				CurrentState = EEnemyState::Examine;
+			}
+		}
 
-            if (SensedCharacter)
-            {
-                UE_LOG(LogTemp, Display, TEXT("Enemy senses a character."));
-                CurrentState = HealthComponent->GetCurrentHealthPercentage() >= 0.4f ? EEnemyState::Engage : EEnemyState::Evade;
-                CurrentPath.Empty();
-            }
-            break;
+		if (SensedCharacter)
+		{
+			UE_LOG(LogTemp, Display, TEXT("Enemy senses a character."));
+			CurrentState = EEnemyState::Examine;  // Transition to Examine instead of Engage
+			CurrentPath.Empty();
+		}
+		break;
         
-        case EEnemyState::Engage:
-            UE_LOG(LogTemp, Display, TEXT("Enemy is in Engage State."));
-            TickEngage();
-            if (HealthComponent->GetCurrentHealthPercentage() < 0.4f) 
-            {
-                UE_LOG(LogTemp, Display, TEXT("Enemy switching to Evade State due to low health."));
-                CurrentState = EEnemyState::Evade;
-            }
-            else if (!SensedCharacter)
-            {
-                UE_LOG(LogTemp, Display, TEXT("Lost sight of character. Returning to Patrol State."));
-                CurrentState = EEnemyState::Patrol;
-            }
-            break;
+	case EEnemyState::Examine:
+		TickExamine(DeltaTime);  // Pass DeltaTime to TickExamine
+		break;
 
-        case EEnemyState::Evade:
-            UE_LOG(LogTemp, Display, TEXT("Enemy is in Evade State."));
-            TickEvade();
-            if (HealthComponent->GetCurrentHealthPercentage() >= 0.4f) 
-            {
-                UE_LOG(LogTemp, Display, TEXT("Enemy regained health. Switching to Engage State."));
-                CurrentState = EEnemyState::Engage;
-            }
-            else if (!SensedCharacter)
-            {
-                UE_LOG(LogTemp, Display, TEXT("Lost sight of character. Returning to Patrol State."));
-                CurrentState = EEnemyState::Patrol;
-            }
-            break;
-        
-        case EEnemyState::Examine:
-            TickExamine(DeltaTime);  // Pass DeltaTime to TickExamine
-            break;
-
-        case EEnemyState::Hiding:
-            UE_LOG(LogTemp, Display, TEXT("Enemy is in Hiding State."));
-            TickHiding();
-            CurrentPath.Empty();
-            break;
-    }
+	case EEnemyState::Hiding:
+		UE_LOG(LogTemp, Display, TEXT("Enemy is in Hiding State."));
+		TickHiding();
+		CurrentPath.Empty();
+		break;
+	}
 }
 
 // Called to bind functionality to input
